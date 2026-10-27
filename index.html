@@ -1,11 +1,39 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-    ようこそ私のページへ！
-</body>
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10172b" />
+    <title>スカイランナー</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <main class="game-shell">
+      <header class="game-heading">
+        <p class="eyebrow">SIDE-SCROLL ACTION</p>
+        <h1>スカイランナー</h1>
+        <p class="instructions">コインを集めながら、ゴールを目指そう！</p>
+      </header>
+
+      <section class="game-frame" aria-label="横スクロールアクションゲーム">
+        <canvas id="game" width="960" height="540" aria-label="ゲーム画面">
+          このゲームを遊ぶには、Canvasに対応したブラウザが必要です。
+        </canvas>
+        <div class="touch-controls" aria-label="タッチ操作">
+          <div class="move-controls">
+            <button class="control-button" data-control="left" aria-label="左へ移動">◀</button>
+            <button class="control-button" data-control="right" aria-label="右へ移動">▶</button>
+          </div>
+          <button class="control-button jump-button" data-control="jump" aria-label="ジャンプ">JUMP</button>
+        </div>
+      </section>
+
+      <footer class="help">
+        <span><kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> 移動</span>
+        <span><kbd>Space</kbd> ジャンプ</span>
+        <span><kbd>R</kbd> リスタート</span>
+      </footer>
+    </main>
+  </body>
 </html>

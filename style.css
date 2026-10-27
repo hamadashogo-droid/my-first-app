@@ -1,0 +1,137 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  padding: 32px 18px;
+  color: #f4f6ff;
+  background:
+    radial-gradient(ellipse at 50% 0%, #27375c 0%, transparent 58%),
+    #10172b;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.game-shell {
+  width: min(100%, 1000px);
+  margin: 0 auto;
+}
+
+.game-heading {
+  margin: 0 0 18px;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: #86e4d4;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  letter-spacing: 0.04em;
+}
+
+.instructions {
+  margin: 8px 0 0;
+  color: #bdc9e6;
+}
+
+.game-frame {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 16px;
+  background: #8bd9ed;
+  box-shadow: 0 24px 70px rgb(0 0 0 / 35%);
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+}
+
+.help {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 24px;
+  margin-top: 16px;
+  color: #bdc9e6;
+  font-size: 0.9rem;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 24px;
+  margin-right: 3px;
+  padding: 2px 6px;
+  border: 1px solid #53617f;
+  border-radius: 5px;
+  color: #fff;
+  background: #202b45;
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.touch-controls {
+  display: none;
+}
+
+@media (hover: none), (pointer: coarse) {
+  body {
+    padding: 20px 10px;
+  }
+
+  .touch-controls {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    pointer-events: none;
+  }
+
+  .move-controls {
+    display: flex;
+    gap: 10px;
+  }
+
+  .control-button {
+    display: grid;
+    width: clamp(48px, 12vw, 66px);
+    height: clamp(48px, 12vw, 66px);
+    place-items: center;
+    border: 1px solid rgb(255 255 255 / 45%);
+    border-radius: 50%;
+    color: #fff;
+    background: rgb(16 23 43 / 68%);
+    font: inherit;
+    font-size: 1.15rem;
+    font-weight: 800;
+    touch-action: none;
+    user-select: none;
+    pointer-events: auto;
+  }
+
+  .control-button:active {
+    background: rgb(72 209 186 / 85%);
+  }
+
+  .jump-button {
+    width: clamp(62px, 16vw, 82px);
+    height: clamp(62px, 16vw, 82px);
+    font-size: 0.8rem;
+  }
+}
