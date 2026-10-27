@@ -71,6 +71,9 @@ const player = {
 let enemies = [];
 let boss = null;
 let hitEffects = [];
+let celebrationParticles = [];
+let celebrationTime = 0;
+let nextFirework = 0;
 let cameraX = 0;
 let lives = 3;
 let score = 0;
@@ -166,6 +169,9 @@ function resetGame() {
   score = 0;
   defeated = 0;
   hitEffects = [];
+  celebrationParticles = [];
+  celebrationTime = 0;
+  nextFirework = 0;
   cameraX = 0;
   gameState = "playing";
   for (const coin of coinSpots) coin.collected = false;
@@ -267,6 +273,72 @@ function spawnHitEffect(target, count = 9, duration = 0.48) {
   });
 }
 
+function launchFirework(x, y) {
+  const color = ["#ffe36e", "#ff76a8", "#75f1dc", "#a99aff", "#ffffff"][
+    Math.floor(Math.random() * 5)
+  ];
+  const count = 30;
+  for (let index = 0; index < count; index += 1) {
+    const angle = (Math.PI * 2 * index) / count + (Math.random() - 0.5) * 0.12;
+    const speed = 75 + Math.random() * 140;
+    celebrationParticles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      age: 0,
+      duration: 0.85 + Math.random() * 0.65,
+      size: 2 + Math.random() * 3,
+      color,
+      kind: "spark",
+    });
+  }
+}
+
+function launchConfetti() {
+  const colors = ["#ffe36e", "#ff76a8", "#75f1dc", "#a99aff", "#ffffff"];
+  celebrationParticles.push({
+    x: Math.random() * WIDTH,
+    y: -8,
+    vx: (Math.random() - 0.5) * 65,
+    vy: 70 + Math.random() * 90,
+    age: 0,
+    duration: 2.8 + Math.random() * 1.8,
+    size: 4 + Math.random() * 5,
+    rotation: Math.random() * Math.PI,
+    spin: (Math.random() - 0.5) * 8,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    kind: "confetti",
+  });
+}
+
+function updateCelebration(delta) {
+  celebrationTime += delta;
+  nextFirework -= delta;
+  if (nextFirework <= 0) {
+    launchFirework(90 + Math.random() * (WIDTH - 180), 90 + Math.random() * 190);
+    nextFirework = 0.42 + Math.random() * 0.38;
+  }
+  if (Math.random() < delta * 24) launchConfetti();
+
+  for (const particle of celebrationParticles) {
+    particle.age += delta;
+    particle.x += particle.vx * delta;
+    particle.y += particle.vy * delta;
+    if (particle.kind === "spark") {
+      particle.vx *= 1 - delta * 0.7;
+      particle.vy += 90 * delta;
+    } else {
+      particle.vx += Math.sin(celebrationTime * 4 + particle.x) * 12 * delta;
+      particle.vy += 35 * delta;
+      particle.rotation += particle.spin * delta;
+    }
+  }
+  celebrationParticles = celebrationParticles.filter(
+    (particle) => particle.age < particle.duration && particle.y < HEIGHT + 20,
+  );
+}
+
 function defeatEnemy(enemy) {
   enemy.alive = false;
   defeated += 1;
@@ -286,6 +358,10 @@ function update(delta) {
     }
   }
   hitEffects = hitEffects.filter((effect) => effect.age < effect.duration);
+  if (gameState === "won") {
+    updateCelebration(delta);
+    return;
+  }
   if (gameState !== "playing") return;
   if (boss?.alive) {
     boss.hitCooldown = Math.max(0, boss.hitCooldown - delta);
@@ -378,7 +454,11 @@ function update(delta) {
   }
 
   if (boss?.alive && overlaps(player, boss)) hurtPlayer();
-  if (player.x > 3450 && !boss?.alive) gameState = "won";
+  if (player.x > 3450 && !boss?.alive) {
+    gameState = "won";
+    celebrationTime = 0;
+    nextFirework = 0;
+  }
   cameraX = Math.max(0, Math.min(WORLD_WIDTH - WIDTH, player.x - WIDTH * 0.36));
 }
 
@@ -586,6 +666,27 @@ function drawHitEffects() {
   }
 }
 
+function drawCelebration() {
+  for (const particle of celebrationParticles) {
+    const alpha = Math.min(1, (particle.duration - particle.age) * 2);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = particle.color;
+    if (particle.kind === "confetti") {
+      ctx.translate(particle.x, particle.y);
+      ctx.rotate(particle.rotation);
+      ctx.fillRect(-particle.size / 2, -particle.size / 3, particle.size, particle.size * 0.65);
+    } else {
+      ctx.shadowColor = particle.color;
+      ctx.shadowBlur = 10;
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.size * alpha, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 function drawPlayer() {
   if (player.invulnerable > 0 && Math.floor(player.invulnerable * 12) % 2 === 0) return;
   const run = player.grounded && player.vx !== 0 ? Math.sin(worldTime * 18) * 2 : 0;
@@ -670,15 +771,36 @@ function drawHud() {
 }
 
 function drawEndMessage(title, subtitle) {
-  ctx.fillStyle = "rgb(11 17 34 / 72%)";
+  ctx.fillStyle = gameState === "won" ? "rgb(15 22 52 / 36%)" : "rgb(11 17 34 / 72%)";
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  if (gameState === "won") drawCelebration();
   ctx.textAlign = "center";
-  ctx.fillStyle = "#fff";
-  ctx.font = "800 54px system-ui, sans-serif";
-  ctx.fillText(title, WIDTH / 2, HEIGHT / 2 - 16);
-  ctx.fillStyle = "#dbe6ff";
-  ctx.font = "500 21px system-ui, sans-serif";
-  ctx.fillText(subtitle, WIDTH / 2, HEIGHT / 2 + 28);
+  if (gameState === "won") {
+    const bounce = Math.sin(celebrationTime * 5) * 5;
+    ctx.fillStyle = "rgb(21 25 61 / 88%)";
+    ctx.beginPath();
+    ctx.roundRect(180, 175, 600, 190, 26);
+    ctx.fill();
+    ctx.strokeStyle = "rgb(255 227 110 / 85%)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = "#ffe36e";
+    ctx.font = "900 22px system-ui, sans-serif";
+    ctx.fillText("★  STAGE CLEAR  ★", WIDTH / 2, 218);
+    ctx.fillStyle = "#fff";
+    ctx.font = "900 48px system-ui, sans-serif";
+    ctx.fillText("クリア！おめでとう！", WIDTH / 2, 277 + bounce);
+    ctx.fillStyle = "#d9e7ff";
+    ctx.font = "600 19px system-ui, sans-serif";
+    ctx.fillText(`コイン ${score} / ${coinSpots.length} 枚　・　Rキーで再挑戦`, WIDTH / 2, 324);
+  } else {
+    ctx.fillStyle = "#fff";
+    ctx.font = "800 54px system-ui, sans-serif";
+    ctx.fillText(title, WIDTH / 2, HEIGHT / 2 - 16);
+    ctx.fillStyle = "#dbe6ff";
+    ctx.font = "500 21px system-ui, sans-serif";
+    ctx.fillText(subtitle, WIDTH / 2, HEIGHT / 2 + 28);
+  }
   ctx.textAlign = "start";
 }
 
