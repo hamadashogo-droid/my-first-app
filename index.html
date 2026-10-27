@@ -3,37 +3,73 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#080d19" />
+    <meta name="theme-color" content="#f7f0df" />
     <title>スカイランナー</title>
-    <link rel="stylesheet" href="style.css?v=2" />
-    <script src="script.js" defer></script>
+    <link rel="stylesheet" href="style.css?v=4" />
+    <script src="script.js?v=2" defer></script>
   </head>
   <body>
     <main class="game-shell">
       <header class="game-heading">
-        <p class="eyebrow">SIDE-SCROLL ACTION</p>
-        <h1>スカイランナー</h1>
-        <p class="instructions">コインを集めながら、ゴールを目指そう！</p>
+        <div class="heading-copy">
+          <p class="eyebrow">ARCADE GAME · 01</p>
+          <h1>スカイランナー</h1>
+          <p class="instructions">コインを集めながら、雲の上のゴールを目指そう！</p>
+        </div>
+        <div class="heading-actions">
+          <button class="music-toggle" id="music-toggle" type="button" aria-pressed="false">♫ BGM OFF</button>
+          <span class="heading-stamp">PLAY NOW</span>
+        </div>
       </header>
 
-      <section class="game-frame" aria-label="横スクロールアクションゲーム">
-        <canvas id="game" width="960" height="540" aria-label="ゲーム画面">
-          このゲームを遊ぶには、Canvasに対応したブラウザが必要です。
-        </canvas>
-        <div class="touch-controls" aria-label="タッチ操作">
-          <div class="move-controls">
-            <button class="control-button" data-control="left" aria-label="左へ移動">◀</button>
-            <button class="control-button" data-control="right" aria-label="右へ移動">▶</button>
+      <div class="arcade-layout">
+        <section class="game-frame" aria-label="横スクロールアクションゲーム">
+          <div class="cabinet-bar" aria-hidden="true">
+            <span>SKY RUNNER / PLAYER 1</span>
+            <span class="cabinet-lights"><i></i><i></i><i></i></span>
           </div>
-          <button class="control-button jump-button" data-control="jump" aria-label="ジャンプ">JUMP</button>
-        </div>
-      </section>
+          <div class="screen">
+            <canvas id="game" width="960" height="540" aria-label="ゲーム画面">
+              このゲームを遊ぶには、Canvasに対応したブラウザが必要です。
+            </canvas>
+          </div>
+          <div class="touch-controls" aria-label="タッチ操作">
+            <div class="move-controls">
+              <button class="control-button" data-control="left" aria-label="左へ移動">◀</button>
+              <button class="control-button" data-control="right" aria-label="右へ移動">▶</button>
+            </div>
+            <button class="control-button attack-button" data-control="attack" aria-label="攻撃">斬</button>
+            <button class="control-button jump-button" data-control="jump" aria-label="ジャンプ">JUMP</button>
+          </div>
+        </section>
 
-      <footer class="help">
-        <span><kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> 移動</span>
-        <span><kbd>Space</kbd> ジャンプ</span>
-        <span><kbd>R</kbd> リスタート</span>
-      </footer>
+        <aside class="side-panel" aria-label="ゲーム情報">
+          <section class="panel-card">
+            <h2 class="panel-label">HOW TO PLAY</h2>
+            <div class="control-row">
+              <span>移動</span>
+              <span class="control-keys"><kbd>←</kbd><kbd>→</kbd></span>
+            </div>
+            <div class="control-row">
+              <span>ジャンプ</span>
+              <span class="control-keys"><kbd>SPACE</kbd></span>
+            </div>
+            <div class="control-row">
+              <span>斬撃</span>
+              <span class="control-keys"><kbd>J</kbd></span>
+            </div>
+            <div class="control-row">
+              <span>リスタート</span>
+              <span class="control-keys"><kbd>R</kbd></span>
+            </div>
+          </section>
+          <section class="panel-card mission-card">
+            <div class="mission-icon" aria-hidden="true">★</div>
+            <h2 class="panel-label">YOUR MISSION</h2>
+            <p>コインを集めて、ゴールまで走り抜けよう！</p>
+          </section>
+        </aside>
+      </div>
     </main>
   </body>
 </html>

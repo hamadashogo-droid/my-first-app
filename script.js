@@ -31,6 +31,7 @@ const coinSpots = [
 ].map(([x, y]) => ({ x, y, collected: false }));
 
 const enemySpots = [
+  { x: 220, min: 190, max: 310, speed: 45 },
   { x: 470, min: 430, max: 560, speed: 75 },
   { x: 1000, min: 770, max: 1230, speed: 90 },
   { x: 1660, min: 1460, max: 1960, speed: 82 },
@@ -38,7 +39,7 @@ const enemySpots = [
   { x: 3180, min: 2980, max: 3460, speed: 88 },
 ];
 
-const input = { left: false, right: false, jumpQueued: false };
+const input = { left: false, right: false, jumpQueued: false, attackQueued: false };
 const player = {
   x: 72,
   y: 0,
@@ -49,16 +50,94 @@ const player = {
   facing: 1,
   grounded: false,
   invulnerable: 0,
+  attackTimer: 0,
 };
 
 let enemies = [];
+let hitEffects = [];
 let cameraX = 0;
 let lives = 3;
 let score = 0;
+let defeated = 0;
 let gameState = "playing";
 let previousTime = 0;
+let worldTime = 0;
+let audioContext = null;
+let musicTimer = null;
+let musicStep = 0;
+let musicEnabled = false;
+let musicMutedByUser = false;
+let musicUnavailable = false;
+
+const melody = [659, 784, 988, 784, 587, 698, 880, 698, 523, 659, 784, 659, 587, 698, 880, 988];
+
+function playTone(frequency, duration = 0.14, volume = 0.035, type = "square") {
+  if (!audioContext || !musicEnabled) return;
+  const oscillator = audioContext.createOscillator();
+  const gain = audioContext.createGain();
+  const now = audioContext.currentTime;
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(frequency, now);
+  gain.gain.setValueAtTime(volume, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  oscillator.connect(gain);
+  gain.connect(audioContext.destination);
+  oscillator.start(now);
+  oscillator.stop(now + duration);
+}
+
+function updateMusicButton() {
+  const button = document.querySelector("#music-toggle");
+  if (!button) return;
+  button.textContent = musicEnabled ? "♫ BGM ON" : "♫ BGM OFF";
+  button.setAttribute("aria-pressed", String(musicEnabled));
+}
+
+function startMusic() {
+  if (musicEnabled || musicMutedByUser || musicUnavailable) return;
+  try {
+    const AudioContextClass = window.AudioContext;
+    if (!AudioContextClass) throw new Error("このブラウザはWeb Audioに対応していません。");
+    audioContext ??= new AudioContextClass();
+    audioContext.resume().catch((error) => console.error("BGMを再生できませんでした。", error));
+    musicEnabled = true;
+    updateMusicButton();
+    musicTimer = window.setInterval(() => {
+      const note = melody[musicStep % melody.length];
+      playTone(note, 0.16, 0.025);
+      if (musicStep % 4 === 0) playTone(melody[musicStep % melody.length] / 2, 0.3, 0.018, "triangle");
+      musicStep += 1;
+    }, 190);
+  } catch (error) {
+    console.error("BGMを初期化できませんでした。", error);
+    musicUnavailable = true;
+    const button = document.querySelector("#music-toggle");
+    if (button) button.textContent = "BGM unavailable";
+  }
+}
+
+function stopMusic() {
+  musicEnabled = false;
+  if (musicTimer !== null) {
+    window.clearInterval(musicTimer);
+    musicTimer = null;
+  }
+  updateMusicButton();
+}
+
+document.querySelector("#music-toggle")?.addEventListener("click", () => {
+  if (musicEnabled) {
+    stopMusic();
+    musicMutedByUser = true;
+  } else {
+    musicMutedByUser = false;
+    startMusic();
+  }
+});
 
 function resetGame() {
+  input.jumpQueued = false;
+  input.attackQueued = false;
   player.x = 72;
   player.y = 470 - player.h;
   player.vx = 0;
@@ -66,13 +145,17 @@ function resetGame() {
   player.facing = 1;
   player.grounded = false;
   player.invulnerable = 0;
+  player.attackTimer = 0;
   lives = 3;
   score = 0;
+  defeated = 0;
+  hitEffects = [];
   cameraX = 0;
   gameState = "playing";
   for (const coin of coinSpots) coin.collected = false;
   enemies = enemySpots.map((enemy) => ({
     ...enemy,
+    y: 470 - 32,
     w: 34,
     h: 32,
     direction: 1,
@@ -90,12 +173,16 @@ function handleInput(event, pressed) {
   if (["arrowleft", "arrowright", " ", "arrowup"].includes(key)) {
     event.preventDefault();
   }
+  if (pressed && ["arrowleft", "arrowright", "a", "d", " ", "arrowup", "w", "j"].includes(key)) {
+    startMusic();
+  }
 
   if (key === "arrowleft" || key === "a") input.left = pressed;
   if (key === "arrowright" || key === "d") input.right = pressed;
   if (pressed && !event.repeat && [" ", "arrowup", "w"].includes(key)) {
     input.jumpQueued = true;
   }
+  if (pressed && !event.repeat && key === "j") input.attackQueued = true;
   if (pressed && key === "r") resetGame();
 }
 
@@ -105,19 +192,22 @@ window.addEventListener("blur", () => {
   input.left = false;
   input.right = false;
   input.jumpQueued = false;
+  input.attackQueued = false;
 });
 
 for (const button of document.querySelectorAll("[data-control]")) {
   const control = button.dataset.control;
   const press = (event) => {
     event.preventDefault();
+    startMusic();
     if (control === "jump") input.jumpQueued = true;
+    else if (control === "attack") input.attackQueued = true;
     else input[control] = true;
     button.setPointerCapture?.(event.pointerId);
   };
   const release = (event) => {
     event.preventDefault();
-    if (control !== "jump") input[control] = false;
+    if (control === "left" || control === "right") input[control] = false;
   };
   button.addEventListener("pointerdown", press);
   button.addEventListener("pointerup", release);
@@ -139,7 +229,42 @@ function hurtPlayer() {
   player.invulnerable = 1.4;
 }
 
+function defeatEnemy(enemy) {
+  enemy.alive = false;
+  defeated += 1;
+  hitEffects.push({
+    x: enemy.x + enemy.w / 2,
+    y: enemy.y + enemy.h / 2,
+    age: 0,
+    duration: 0.48,
+    particles: Array.from({ length: 9 }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / 9;
+      const speed = 65 + (index % 3) * 28;
+      return {
+        x: enemy.x + enemy.w / 2,
+        y: enemy.y + enemy.h / 2,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - 35,
+        size: index % 3 === 0 ? 6 : 4,
+        color: ["#ff557a", "#ffe17b", "#80e7dc"][index % 3],
+      };
+    }),
+  });
+  playTone(1047, 0.12, 0.045, "sawtooth");
+}
+
 function update(delta) {
+  worldTime += delta;
+  player.attackTimer = Math.max(0, player.attackTimer - delta);
+  for (const effect of hitEffects) {
+    effect.age += delta;
+    for (const particle of effect.particles) {
+      particle.x += particle.vx * delta;
+      particle.y += particle.vy * delta;
+      particle.vy += 260 * delta;
+    }
+  }
+  hitEffects = hitEffects.filter((effect) => effect.age < effect.duration);
   if (gameState !== "playing") return;
 
   const previousBottom = player.y + player.h;
@@ -186,6 +311,22 @@ function update(delta) {
     }
   }
 
+  if (input.attackQueued && player.attackTimer === 0) {
+    player.attackTimer = 0.24;
+    const slash = {
+      x: player.facing > 0 ? player.x + player.w - 4 : player.x - 64,
+      y: player.y - 2,
+      w: 68,
+      h: player.h + 4,
+    };
+    for (const enemy of enemies) {
+      if (enemy.alive && overlaps(slash, enemy)) {
+        defeatEnemy(enemy);
+      }
+    }
+  }
+  input.attackQueued = false;
+
   for (const enemy of enemies) {
     if (!enemy.alive) continue;
     enemy.x += enemy.speed * enemy.direction * delta;
@@ -193,7 +334,7 @@ function update(delta) {
     if (!overlaps(player, enemy)) continue;
 
     if (player.vy > 0 && previousBottom <= enemy.y + 14) {
-      enemy.alive = false;
+      defeatEnemy(enemy);
       player.vy = -390;
     } else {
       hurtPlayer();
@@ -204,41 +345,84 @@ function update(delta) {
   cameraX = Math.max(0, Math.min(WORLD_WIDTH - WIDTH, player.x - WIDTH * 0.36));
 }
 
+function drawCloud(x, y, scale = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = "rgb(255 255 255 / 54%)";
+  ctx.beginPath();
+  ctx.ellipse(0, 8, 48, 13, 0, 0, Math.PI * 2);
+  ctx.ellipse(-18, 1, 21, 17, 0, 0, Math.PI * 2);
+  ctx.ellipse(5, -8, 26, 23, 0, 0, Math.PI * 2);
+  ctx.ellipse(29, 2, 19, 16, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawBackground() {
   const sky = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-  sky.addColorStop(0, "#75c9e8");
-  sky.addColorStop(1, "#daf5e8");
+  sky.addColorStop(0, "#101d49");
+  sky.addColorStop(0.48, "#344e87");
+  sky.addColorStop(1, "#f19a82");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
 
-  ctx.fillStyle = "#fff4bd";
+  const sunGlow = ctx.createRadialGradient(752, 174, 18, 752, 174, 128);
+  sunGlow.addColorStop(0, "rgb(255 226 153 / 55%)");
+  sunGlow.addColorStop(1, "rgb(255 226 153 / 0%)");
+  ctx.fillStyle = sunGlow;
   ctx.beginPath();
-  ctx.arc(790, 105, 42, 0, Math.PI * 2);
+  ctx.arc(752, 174, 128, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#ffe6a1";
+  ctx.beginPath();
+  ctx.arc(752, 174, 43, 0, Math.PI * 2);
   ctx.fill();
 
-  for (let layer = 0; layer < 2; layer += 1) {
-    const parallax = layer === 0 ? 0.16 : 0.3;
-    const baseY = layer === 0 ? 380 : 430;
-    const color = layer === 0 ? "#a4dbcf" : "#75c5b2";
-    const offset = (cameraX * parallax) % 420;
+  for (let i = 0; i < 44; i += 1) {
+    const x = (i * 193 + 37) % WIDTH;
+    const y = (i * 71 + 24) % 245;
+    const twinkle = 0.42 + Math.sin(worldTime * 2 + i) * 0.2;
+    ctx.fillStyle = `rgb(255 255 255 / ${twinkle})`;
+    ctx.fillRect(x, y, i % 5 === 0 ? 2 : 1, i % 5 === 0 ? 2 : 1);
+  }
+
+  for (let layer = 0; layer < 3; layer += 1) {
+    const parallax = [0.08, 0.17, 0.28][layer];
+    const baseY = [330, 385, 445][layer];
+    const color = ["#344574", "#394d78", "#334369"][layer];
+    const offset = (cameraX * parallax) % 360;
     ctx.fillStyle = color;
-    for (let x = -420 - offset; x < WIDTH + 420; x += 420) {
+    for (let x = -360 - offset; x < WIDTH + 360; x += 360) {
       ctx.beginPath();
       ctx.moveTo(x, HEIGHT);
-      ctx.quadraticCurveTo(x + 190, baseY - 180 + layer * 35, x + 420, HEIGHT);
+      ctx.lineTo(x, baseY + 70);
+      ctx.lineTo(x + 95, baseY - 50 - layer * 13);
+      ctx.lineTo(x + 155, baseY + 12);
+      ctx.lineTo(x + 230, baseY - 110 + layer * 12);
+      ctx.lineTo(x + 360, baseY + 70);
+      ctx.closePath();
       ctx.fill();
     }
+  }
+
+  for (let i = 0; i < 5; i += 1) {
+    const x = ((i * 247 - cameraX * 0.42 + 1800) % (WIDTH + 180) + WIDTH + 180) % (WIDTH + 180) - 70;
+    drawCloud(x, 245 + (i % 3) * 42, 0.65 + (i % 2) * 0.16);
   }
 }
 
 function drawPlatform(platform) {
-  ctx.fillStyle = "#7a503c";
+  ctx.fillStyle = "#222847";
   ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-  ctx.fillStyle = "#55bb70";
-  ctx.fillRect(platform.x, platform.y, platform.w, 10);
-  ctx.fillStyle = "#8b6045";
+  ctx.fillStyle = "#54e2d0";
+  ctx.fillRect(platform.x, platform.y, platform.w, 7);
+  ctx.fillStyle = "#384266";
   for (let x = platform.x + 14; x < platform.x + platform.w; x += 34) {
-    ctx.fillRect(x, platform.y + 22, 3, 10);
+    ctx.fillRect(x, platform.y + 20, 3, 8);
+    ctx.fillStyle = "#65749c";
+    ctx.fillRect(x + 7, platform.y + 34, 3, 4);
+    ctx.fillStyle = "#384266";
   }
 }
 
@@ -255,34 +439,112 @@ function drawCoin(coin) {
 
 function drawEnemy(enemy) {
   if (!enemy.alive) return;
-  ctx.fillStyle = "#e86b68";
+  const bob = Math.sin(worldTime * 8 + enemy.x) * 2;
+  ctx.save();
+  ctx.translate(enemy.x, enemy.y + bob);
+  ctx.fillStyle = "#552456";
   ctx.beginPath();
-  ctx.roundRect(enemy.x, enemy.y, enemy.w, enemy.h, 12);
+  ctx.moveTo(2, 11);
+  ctx.lineTo(8, 4);
+  ctx.lineTo(14, 8);
+  ctx.lineTo(23, 3);
+  ctx.lineTo(31, 12);
+  ctx.lineTo(30, 25);
+  ctx.quadraticCurveTo(17, 37, 4, 25);
+  ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = "#fff";
-  ctx.fillRect(enemy.x + 8, enemy.y + 9, 6, 8);
-  ctx.fillRect(enemy.x + 21, enemy.y + 9, 6, 8);
-  ctx.fillStyle = "#27334b";
-  ctx.fillRect(enemy.x + 10, enemy.y + 12, 3, 4);
-  ctx.fillRect(enemy.x + 23, enemy.y + 12, 3, 4);
+  ctx.fillStyle = "#ff557a";
+  ctx.fillRect(8, 13, 6, 4);
+  ctx.fillRect(21, 13, 6, 4);
+  ctx.fillStyle = "#ffd8a1";
+  ctx.fillRect(10, 14, 2, 2);
+  ctx.fillRect(23, 14, 2, 2);
+  ctx.fillStyle = "#32183f";
+  ctx.fillRect(9, 26, 5, 6);
+  ctx.fillRect(21, 26, 5, 6);
+  ctx.restore();
+}
+
+function drawHitEffects() {
+  for (const effect of hitEffects) {
+    const progress = effect.age / effect.duration;
+    const alpha = 1 - progress;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = "#fff1a4";
+    ctx.lineWidth = 4 * alpha + 1;
+    ctx.beginPath();
+    ctx.arc(effect.x, effect.y, 8 + progress * 28, 0, Math.PI * 2);
+    ctx.stroke();
+    for (const particle of effect.particles) {
+      ctx.fillStyle = particle.color;
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.size * alpha, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#fff7d1";
+    ctx.font = "900 16px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("HIT!", effect.x, effect.y - 16 - progress * 36);
+    ctx.restore();
+  }
 }
 
 function drawPlayer() {
   if (player.invulnerable > 0 && Math.floor(player.invulnerable * 12) % 2 === 0) return;
-  ctx.fillStyle = "#3359cb";
+  const run = player.grounded && player.vx !== 0 ? Math.sin(worldTime * 18) * 2 : 0;
+  ctx.save();
+  ctx.translate(player.x + player.w / 2, player.y);
+  ctx.scale(player.facing, 1);
+  ctx.fillStyle = "#ff7c68";
   ctx.beginPath();
-  ctx.roundRect(player.x, player.y + 12, player.w, player.h - 12, 9);
+  ctx.moveTo(-8, 17);
+  ctx.quadraticCurveTo(-23 - run, 12, -24 - run, 4);
+  ctx.quadraticCurveTo(-14, 9, -8, 10);
   ctx.fill();
-  ctx.fillStyle = "#ffd1a3";
+  const bodyGradient = ctx.createLinearGradient(-14, 14, 12, 45);
+  bodyGradient.addColorStop(0, "#6f7dff");
+  bodyGradient.addColorStop(1, "#403bc0");
+  ctx.fillStyle = bodyGradient;
   ctx.beginPath();
-  ctx.roundRect(player.x + 4, player.y, player.w - 8, 24, 8);
+  ctx.roundRect(-15, 17, 30, 28, 10);
   ctx.fill();
+  ctx.fillStyle = "#ffd56d";
+  ctx.fillRect(-14, 36, 28, 5);
+  ctx.fillStyle = "#e8b58c";
+  ctx.beginPath();
+  ctx.roundRect(-11, 1, 22, 22, 8);
+  ctx.fill();
+  ctx.fillStyle = "#1e294f";
+  ctx.beginPath();
+  ctx.moveTo(-12, 8);
+  ctx.lineTo(-8, 0);
+  ctx.lineTo(9, 1);
+  ctx.lineTo(13, 10);
+  ctx.lineTo(5, 7);
+  ctx.lineTo(-3, 9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#fff5d5";
+  ctx.fillRect(3, 11, 5, 4);
   ctx.fillStyle = "#26324c";
-  const eyeX = player.facing > 0 ? player.x + 24 : player.x + 8;
-  ctx.fillRect(eyeX, player.y + 9, 4, 5);
-  ctx.fillStyle = "#26324c";
-  ctx.fillRect(player.x + 5, player.y + player.h - 5, 10, 5);
-  ctx.fillRect(player.x + 20, player.y + player.h - 5, 10, 5);
+  ctx.fillRect(7, 12, 2, 3);
+  ctx.fillStyle = "#f3c04f";
+  ctx.fillRect(-14, 43 + run, 12, 5);
+  ctx.fillRect(3, 43 - run, 12, 5);
+  ctx.restore();
+
+  if (player.attackTimer > 0.08) {
+    ctx.save();
+    ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
+    ctx.scale(player.facing, 1);
+    ctx.strokeStyle = "rgb(111 247 239 / 90%)";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(18, -2, 38, -0.95, 0.95);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 
 function drawGoal() {
@@ -300,13 +562,15 @@ function drawGoal() {
 function drawHud() {
   ctx.fillStyle = "rgb(16 23 43 / 78%)";
   ctx.beginPath();
-  ctx.roundRect(20, 18, 245, 54, 14);
+  ctx.roundRect(20, 18, 320, 54, 14);
   ctx.fill();
   ctx.fillStyle = "#fff";
   ctx.font = "700 20px system-ui, sans-serif";
   ctx.fillText(`${"♥".repeat(lives)}${"♡".repeat(3 - lives)}`, 36, 53);
   ctx.fillStyle = "#ffdf74";
   ctx.fillText(`★ ${score} / ${coinSpots.length}`, 155, 53);
+  ctx.fillStyle = "#80e7dc";
+  ctx.fillText(`⚔ ${defeated}`, 260, 53);
 }
 
 function drawEndMessage(title, subtitle) {
@@ -330,6 +594,7 @@ function draw() {
   drawGoal();
   for (const coin of coinSpots) drawCoin(coin);
   for (const enemy of enemies) drawEnemy(enemy);
+  drawHitEffects();
   drawPlayer();
   ctx.restore();
 
