@@ -39,6 +39,21 @@ const enemySpots = [
   { x: 3180, min: 2980, max: 3460, speed: 88 },
 ];
 
+const bossStart = {
+  x: 3330,
+  min: 3240,
+  max: 3430,
+  y: 404,
+  w: 60,
+  h: 66,
+  speed: 42,
+  direction: -1,
+  hp: 5,
+  maxHp: 5,
+  hitCooldown: 0,
+  alive: true,
+};
+
 const input = { left: false, right: false, jumpQueued: false, attackQueued: false };
 const player = {
   x: 72,
@@ -54,6 +69,7 @@ const player = {
 };
 
 let enemies = [];
+let boss = null;
 let hitEffects = [];
 let cameraX = 0;
 let lives = 3;
@@ -161,6 +177,7 @@ function resetGame() {
     direction: 1,
     alive: true,
   }));
+  boss = { ...bossStart };
 }
 
 function overlaps(a, b) {
@@ -229,20 +246,18 @@ function hurtPlayer() {
   player.invulnerable = 1.4;
 }
 
-function defeatEnemy(enemy) {
-  enemy.alive = false;
-  defeated += 1;
+function spawnHitEffect(target, count = 9, duration = 0.48) {
   hitEffects.push({
-    x: enemy.x + enemy.w / 2,
-    y: enemy.y + enemy.h / 2,
+    x: target.x + target.w / 2,
+    y: target.y + target.h / 2,
     age: 0,
-    duration: 0.48,
-    particles: Array.from({ length: 9 }, (_, index) => {
-      const angle = (Math.PI * 2 * index) / 9;
+    duration,
+    particles: Array.from({ length: count }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / count;
       const speed = 65 + (index % 3) * 28;
       return {
-        x: enemy.x + enemy.w / 2,
-        y: enemy.y + enemy.h / 2,
+        x: target.x + target.w / 2,
+        y: target.y + target.h / 2,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed - 35,
         size: index % 3 === 0 ? 6 : 4,
@@ -250,6 +265,12 @@ function defeatEnemy(enemy) {
       };
     }),
   });
+}
+
+function defeatEnemy(enemy) {
+  enemy.alive = false;
+  defeated += 1;
+  spawnHitEffect(enemy);
   playTone(1047, 0.12, 0.045, "sawtooth");
 }
 
@@ -266,6 +287,11 @@ function update(delta) {
   }
   hitEffects = hitEffects.filter((effect) => effect.age < effect.duration);
   if (gameState !== "playing") return;
+  if (boss?.alive) {
+    boss.hitCooldown = Math.max(0, boss.hitCooldown - delta);
+    boss.x += boss.speed * boss.direction * delta;
+    if (boss.x < boss.min || boss.x + boss.w > boss.max) boss.direction *= -1;
+  }
 
   const previousBottom = player.y + player.h;
   player.vx = (Number(input.right) - Number(input.left)) * 285;
@@ -324,6 +350,16 @@ function update(delta) {
         defeatEnemy(enemy);
       }
     }
+    if (boss?.alive && boss.hitCooldown === 0 && overlaps(slash, boss)) {
+      boss.hp -= 1;
+      boss.hitCooldown = 0.55;
+      spawnHitEffect(boss, boss.hp === 0 ? 20 : 8, boss.hp === 0 ? 0.72 : 0.3);
+      playTone(boss.hp === 0 ? 523 : 784, 0.2, 0.055, "sawtooth");
+      if (boss.hp === 0) {
+        boss.alive = false;
+        defeated += 1;
+      }
+    }
   }
   input.attackQueued = false;
 
@@ -341,7 +377,8 @@ function update(delta) {
     }
   }
 
-  if (player.x > 3450) gameState = "won";
+  if (boss?.alive && overlaps(player, boss)) hurtPlayer();
+  if (player.x > 3450 && !boss?.alive) gameState = "won";
   cameraX = Math.max(0, Math.min(WORLD_WIDTH - WIDTH, player.x - WIDTH * 0.36));
 }
 
@@ -463,6 +500,65 @@ function drawEnemy(enemy) {
   ctx.fillRect(9, 26, 5, 6);
   ctx.fillRect(21, 26, 5, 6);
   ctx.restore();
+}
+
+function drawBoss() {
+  if (!boss?.alive) return;
+  const bob = Math.sin(worldTime * 5) * 2;
+  ctx.save();
+  ctx.translate(boss.x, boss.y + bob);
+  if (boss.hitCooldown > 0 && Math.floor(boss.hitCooldown * 24) % 2 === 0) {
+    ctx.globalAlpha = 0.48;
+  }
+  ctx.fillStyle = "rgb(255 69 125 / 20%)";
+  ctx.beginPath();
+  ctx.ellipse(boss.w / 2, boss.h / 2, 48, 48, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#342044";
+  ctx.beginPath();
+  ctx.moveTo(6, 24);
+  ctx.lineTo(1, 2);
+  ctx.lineTo(20, 13);
+  ctx.lineTo(30, 0);
+  ctx.lineTo(42, 13);
+  ctx.lineTo(59, 2);
+  ctx.lineTo(54, 27);
+  ctx.lineTo(60, 53);
+  ctx.quadraticCurveTo(30, 76, 0, 53);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#a54472";
+  ctx.beginPath();
+  ctx.moveTo(8, 24);
+  ctx.lineTo(21, 17);
+  ctx.lineTo(30, 24);
+  ctx.lineTo(40, 17);
+  ctx.lineTo(53, 24);
+  ctx.lineTo(49, 52);
+  ctx.quadraticCurveTo(30, 67, 11, 52);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#ff557a";
+  ctx.fillRect(15, 29, 11, 5);
+  ctx.fillRect(35, 29, 11, 5);
+  ctx.fillStyle = "#fff1a4";
+  ctx.fillRect(19, 30, 4, 3);
+  ctx.fillRect(39, 30, 4, 3);
+  ctx.fillStyle = "#ffd56d";
+  ctx.fillRect(24, 45, 12, 4);
+  ctx.restore();
+
+  const barWidth = 100;
+  const barX = boss.x + boss.w / 2 - barWidth / 2;
+  const barY = boss.y - 19;
+  ctx.fillStyle = "rgb(20 18 42 / 85%)";
+  ctx.beginPath();
+  ctx.roundRect(barX - 2, barY - 2, barWidth + 4, 10, 5);
+  ctx.fill();
+  ctx.fillStyle = "#ff557a";
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, barWidth * (boss.hp / boss.maxHp), 6, 3);
+  ctx.fill();
 }
 
 function drawHitEffects() {
@@ -594,11 +690,24 @@ function draw() {
   drawGoal();
   for (const coin of coinSpots) drawCoin(coin);
   for (const enemy of enemies) drawEnemy(enemy);
+  drawBoss();
   drawHitEffects();
   drawPlayer();
   ctx.restore();
 
   drawHud();
+  if (boss?.alive && player.x > 3000) {
+    ctx.fillStyle = "rgb(16 18 42 / 86%)";
+    ctx.beginPath();
+    ctx.roundRect(WIDTH - 190, 18, 170, 54, 12);
+    ctx.fill();
+    ctx.fillStyle = "#ff8ba4";
+    ctx.font = "900 13px system-ui, sans-serif";
+    ctx.fillText("BOSS", WIDTH - 174, 38);
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.fillText(`HP ${boss.hp} / ${boss.maxHp}`, WIDTH - 174, 57);
+  }
   if (gameState === "won") drawEndMessage("ゴール！", `コイン ${score} / ${coinSpots.length} 枚　・　Rキーで再挑戦`);
   if (gameState === "gameover") drawEndMessage("ゲームオーバー", "Rキーでリスタート");
 }
