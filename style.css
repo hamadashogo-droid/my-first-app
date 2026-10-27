@@ -6,50 +6,86 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  padding: 32px 18px;
+  padding: clamp(24px, 5vh, 52px) 18px 32px;
   color: #f4f6ff;
   background:
-    radial-gradient(ellipse at 50% 0%, #27375c 0%, transparent 58%),
-    #10172b;
+    radial-gradient(ellipse at 50% -12%, rgb(91 121 190 / 35%) 0%, transparent 48%),
+    radial-gradient(ellipse at 8% 82%, rgb(51 195 179 / 10%) 0%, transparent 32%),
+    #0b1020;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 .game-shell {
-  width: min(100%, 1000px);
+  width: min(100%, 1040px);
   margin: 0 auto;
 }
 
 .game-heading {
-  margin: 0 0 18px;
+  margin: 0 0 24px;
   text-align: center;
 }
 
 .eyebrow {
-  margin: 0 0 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 10px;
   color: #86e4d4;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.2em;
 }
 
+.eyebrow::before,
+.eyebrow::after {
+  width: 22px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #56d8c3);
+  content: "";
+}
+
+.eyebrow::after {
+  transform: rotate(180deg);
+}
+
 h1 {
   margin: 0;
-  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  background: linear-gradient(110deg, #ffffff 20%, #b8d5ff 58%, #8debd9);
+  background-clip: text;
+  color: transparent;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 850;
   letter-spacing: 0.04em;
+  line-height: 1.15;
+  -webkit-background-clip: text;
 }
 
 .instructions {
   margin: 8px 0 0;
-  color: #bdc9e6;
+  color: #aab8d5;
+  font-size: 0.95rem;
 }
 
 .game-frame {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 20%);
-  border-radius: 16px;
+  border: 1px solid rgb(190 214 255 / 24%);
+  border-radius: 20px;
   background: #8bd9ed;
-  box-shadow: 0 24px 70px rgb(0 0 0 / 35%);
+  box-shadow:
+    0 0 0 5px rgb(255 255 255 / 2%),
+    0 28px 80px rgb(0 0 0 / 48%),
+    0 0 46px rgb(90 180 220 / 12%);
+}
+
+.game-frame::after {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 12%);
+  content: "";
+  pointer-events: none;
 }
 
 canvas {
@@ -63,21 +99,33 @@ canvas {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 12px 24px;
-  margin-top: 16px;
-  color: #bdc9e6;
-  font-size: 0.9rem;
+  gap: 10px;
+  margin-top: 20px;
+  color: #b7c3dd;
+  font-size: 0.82rem;
+}
+
+.help span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  gap: 3px;
+  padding: 5px 12px;
+  border: 1px solid rgb(170 192 230 / 12%);
+  border-radius: 9px;
+  background: rgb(255 255 255 / 3%);
 }
 
 kbd {
   display: inline-block;
-  min-width: 24px;
+  min-width: 25px;
   margin-right: 3px;
-  padding: 2px 6px;
-  border: 1px solid #53617f;
+  padding: 2px 5px;
+  border: 1px solid #465574;
+  border-bottom-width: 2px;
   border-radius: 5px;
-  color: #fff;
-  background: #202b45;
+  color: #e8efff;
+  background: #202a42;
   font: inherit;
   font-size: 0.8rem;
   text-align: center;
@@ -89,7 +137,11 @@ kbd {
 
 @media (hover: none), (pointer: coarse) {
   body {
-    padding: 20px 10px;
+    padding: 24px 10px;
+  }
+
+  .game-heading {
+    margin-bottom: 18px;
   }
 
   .touch-controls {
@@ -113,10 +165,12 @@ kbd {
     width: clamp(48px, 12vw, 66px);
     height: clamp(48px, 12vw, 66px);
     place-items: center;
-    border: 1px solid rgb(255 255 255 / 45%);
+    border: 1px solid rgb(255 255 255 / 48%);
+    box-shadow: 0 5px 18px rgb(0 0 0 / 24%), inset 0 1px 0 rgb(255 255 255 / 16%);
     border-radius: 50%;
     color: #fff;
-    background: rgb(16 23 43 / 68%);
+    background: rgb(14 22 40 / 76%);
+    backdrop-filter: blur(8px);
     font: inherit;
     font-size: 1.15rem;
     font-weight: 800;
@@ -126,12 +180,38 @@ kbd {
   }
 
   .control-button:active {
-    background: rgb(72 209 186 / 85%);
+    background: rgb(48 183 164 / 90%);
+    transform: scale(0.96);
   }
 
   .jump-button {
     width: clamp(62px, 16vw, 82px);
     height: clamp(62px, 16vw, 82px);
     font-size: 0.8rem;
+  }
+
+  .help {
+    gap: 8px;
+    margin-top: 14px;
+    font-size: 0.75rem;
+  }
+
+  .help span {
+    min-height: 34px;
+    padding: 4px 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .game-frame {
+    border-radius: 14px;
+  }
+
+  .eyebrow {
+    font-size: 0.64rem;
+  }
+
+  .instructions {
+    font-size: 0.88rem;
   }
 }
